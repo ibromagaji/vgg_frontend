@@ -5,7 +5,7 @@ import json
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="LeafScan · Plant Disease Classifier",
+    page_title="LeafScan · Plant Diagnostics",
     page_icon="🌿",
     layout="centered",
     initial_sidebar_state="collapsed",
@@ -29,7 +29,7 @@ if "uploaded_image" not in st.session_state:
 # ══════════════════════════════════════════════════════════════════════════════
 def run_model(image_bytes: bytes) -> dict:
     resp = requests.post(
-        "http://vgg-ec2.duckdns.org:8000/predict",
+        "http://vgg-ec2.duckdns.org/predict",
         files={"file": ("image.jpg", image_bytes)},
         timeout=30,
     )
@@ -37,8 +37,6 @@ def run_model(image_bytes: bytes) -> dict:
     data = resp.json()
 
     disease_name = data["prediction"]
-
-    # disease_info is a JSON string from the LLM — parse it
     info = json.loads(data["disease_info"])
 
     return {
@@ -54,54 +52,49 @@ def run_model(image_bytes: bytes) -> dict:
 # PAGE 1 — UPLOAD
 # ══════════════════════════════════════════════════════════════════════════════
 def page_upload():
-    # ── Hero header ───────────────────────────────────────────────────────────
+    # ── Header ────────────────────────────────────────────────────────────────
     st.markdown("""
-    <div class="hero">
-      <div class="hero-badge">🌿 AI-Powered Diagnostics</div>
-      <h1 class="hero-title">LeafScan</h1>
-      <p class="hero-sub">
-        Upload a photograph of your plant and let our model identify
-        diseases with precision — instantly.
-      </p>
+    <div class="header-block">
+      <h1 class="brand-title">LeafScan</h1>
+      <p class="brand-subtitle">Plant Disease Classifier.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-    # ── Upload card ───────────────────────────────────────────────────────────
-    st.markdown('<div class="upload-card">', unsafe_allow_html=True)
-    st.markdown('<p class="section-label">Upload Plant Image</p>', unsafe_allow_html=True)
-
+    # ── Upload Dropzone ───────────────────────────────────────────────────────
     uploaded = st.file_uploader(
-        label="Upload a plant image",
+        label="Upload plant specimen",
         type=["jpg", "jpeg", "png", "webp"],
         label_visibility="collapsed",
     )
 
     if uploaded:
-        st.markdown('<div class="image-preview">', unsafe_allow_html=True)
-        st.image(uploaded, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
         st.markdown(
-            f'<p class="file-meta">📎 {uploaded.name} · '
-            f'{uploaded.size / 1024:.1f} KB</p>',
+            f'<p class="file-metadata">Selected: {uploaded.name} ({uploaded.size / 1024:.1f} KB)</p>',
             unsafe_allow_html=True,
         )
+    else:
+        st.markdown('<p class="file-metadata-placeholder">Supported formats: JPG, PNG, WEBP</p>', unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)   # /upload-card
+    # ── Action Button ─────────────────────────────────────────────────────────
+    st.markdown('<div class="button-container">', unsafe_allow_html=True)
+    predict_clicked = st.button(
+        "Run Diagnostics",
+        disabled=uploaded is None,
+        key="predict_btn",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Predict button ────────────────────────────────────────────────────────
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        predict_clicked = st.button(
-            "✦  Analyse Plant",
-            disabled=uploaded is None,
-            use_container_width=True,
-            key="predict_btn",
-        )
-
+    # ── Elegant Loading & Execution ──────────────────────────────────────────
     if predict_clicked and uploaded:
-        with st.spinner("🔬 Scanning leaf patterns…"):
+        # Replaces the page with a clean, high-end loading container
+        st.markdown("""
+        <div class="loading-overlay">
+          <div class="pulse-loader"></div>
+          <p class="loading-text">Deconstructing cellular patterns...</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.spinner(""):
             try:
                 result = run_model(uploaded.getvalue())
             except Exception as e:
@@ -113,23 +106,14 @@ def page_upload():
         st.session_state.page = "result"
         st.rerun()
 
-    # ── Footer tips ───────────────────────────────────────────────────────────
-    st.markdown("""
-    <div class="tips-row">
-      <div class="tip-card">
-        <span class="tip-icon">☀️</span>
-        <span>Good lighting reveals lesion detail</span>
-      </div>
-      <div class="tip-card">
-        <span class="tip-icon">🔍</span>
-        <span>Focus on the most affected leaf</span>
-      </div>
-      <div class="tip-card">
-        <span class="tip-icon">📐</span>
-        <span>Fill the frame with the leaf</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # # ── Guidelines ────────────────────────────────────────────────────────────
+    # st.markdown("""
+    # <div class="guidelines-grid">
+    #   <div class="guide-item"><span>01 /</span> Clear lighting reveals surface structural details</div>
+    #   <div class="guide-item"><span>02 /</span> Frame primarily the symptom or affected leaf area</div>
+    #   <div class="guide-item"><span>03 /</span> Keep the camera parallel to the leaf surface</div>
+    # </div>
+    # """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -139,70 +123,59 @@ def page_result():
     pred = st.session_state.prediction
     img  = st.session_state.uploaded_image
 
-    # ── Top bar ───────────────────────────────────────────────────────────────
+    # ── Top Navigation ────────────────────────────────────────────────────────
     st.markdown("""
-    <div class="result-topbar">
-      <span class="topbar-brand">🌿 LeafScan</span>
-      <span class="topbar-label">Diagnostic Report</span>
+    <div class="nav-bar">
+      <span class="nav-brand">LeafScan</span>
+      <span class="nav-status">Diagnostic Summary</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Disease headline card ─────────────────────────────────────────────────
-    st.markdown(f"""
-    <div class="disease-headline">
-      <div class="disease-name">{pred["disease"]}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ── Two-column layout: image + description ────────────────────────────────
-    col_img, col_desc = st.columns([1, 1.6], gap="large")
+    # ── Split Grid: Visual vs Profile ─────────────────────────────────────────
+    col_img, col_desc = st.columns([1, 1.2], gap="large")
 
     with col_img:
         if img:
-            st.markdown('<div class="result-image-wrap">', unsafe_allow_html=True)
-            st.image(img, use_container_width=True, caption="Analysed specimen")
+            st.markdown('<div class="result-frame">', unsafe_allow_html=True)
+            st.image(img, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with col_desc:
         st.markdown(f"""
-        <div class="desc-block">
-          <p class="section-label">About This Disease</p>
-          <p class="desc-text">{pred["description"]}</p>
+        <div class="diagnosis-profile">
+          <span class="label-caps">Identified Condition</span>
+          <h2 class="condition-title">{pred["disease"]}</h2>
+          <p class="condition-body">{pred["description"]}</p>
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown('<div class="divider-sm"></div>', unsafe_allow_html=True)
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-    # ── Three info panels ─────────────────────────────────────────────────────
+    # ── Tri-Panel Action Plan ─────────────────────────────────────────────────
     c1, c2, c3 = st.columns(3, gap="medium")
-
     panels = [
-        ("🔬", "Symptoms",   pred["symptoms"]),
-        ("💊", "Treatment",  pred["treatment"]),
-        ("🛡️", "Prevention", pred["prevention"]),
+        ("Clinical Symptoms", pred["symptoms"]),
+        ("Immediate Treatment", pred["treatment"]),
+        ("Long-term Prevention", pred["prevention"]),
     ]
 
-    for col, (icon, title, items) in zip([c1, c2, c3], panels):
+    for col, (title, items) in zip([c1, c2, c3], panels):
         items_html = "".join(f'<li>{i}</li>' for i in items)
         col.markdown(f"""
-        <div class="info-panel">
-          <div class="panel-header">
-            <span class="panel-icon">{icon}</span>
-            <span class="panel-title">{title}</span>
-          </div>
-          <ul class="panel-list">{items_html}</ul>
+        <div class="manifest-card">
+          <h4 class="manifest-title">{title}</h4>
+          <ul class="manifest-list">{items_html}</ul>
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Back button ───────────────────────────────────────────────────────────
-    st.markdown('<div class="divider-sm"></div>', unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns([1, 1.4, 1])
-    with col_b:
-        if st.button("← Analyse Another Plant", use_container_width=True, key="back_btn"):
-            st.session_state.page = "upload"
-            st.session_state.prediction = None
-            st.session_state.uploaded_image = None
-            st.rerun()
+    # ── Footer Return Button ──────────────────────────────────────────────────
+    st.markdown('<div class="return-container">', unsafe_allow_html=True)
+    if st.button("New Analysis", key="back_btn"):
+        st.session_state.page = "upload"
+        st.session_state.prediction = None
+        st.session_state.uploaded_image = None
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
